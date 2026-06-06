@@ -33,6 +33,7 @@
     const _styles   = new WeakMap(); // element  → saved style snapshot
     const _config   = new WeakMap(); // instance → declarative config
     const _registry = new WeakMap(); // element  → CollapseTree instance
+    const _anim     = new WeakMap(); // instance → { timer, phase, cfg }
 
     // ── Class ────────────────────────────────────────────────────────────────
 
@@ -88,25 +89,25 @@
             }
 
             _styles.set(el, {
-                display         : cs.display,
+                display           : cs.display,
                 width, height,
-                overflow        : cs.overflow,
-                paddingTop      : cs.paddingTop,
-                paddingBottom   : cs.paddingBottom,
-                paddingLeft     : cs.paddingLeft,
-                paddingRight    : cs.paddingRight,
-                marginTop       : cs.marginTop,
-                marginBottom    : cs.marginBottom,
-                marginLeft      : cs.marginLeft,
-                marginRight     : cs.marginRight,
-                transition      : cs.transition,
-                inlineWidth     : el.style.width,
-                inlineHeight    : el.style.height,
-                inlineTransform : el.style.transform,
-                position        : cs.position,
-                left            : cs.left,
-                top             : cs.top,
-                visibility      : cs.visibility,
+                overflow          : cs.overflow,
+                paddingTop        : cs.paddingTop,
+                paddingBottom     : cs.paddingBottom,
+                paddingLeft       : cs.paddingLeft,
+                paddingRight      : cs.paddingRight,
+                marginTop         : cs.marginTop,
+                marginBottom      : cs.marginBottom,
+                marginLeft        : cs.marginLeft,
+                marginRight       : cs.marginRight,
+                inlineWidth       : el.style.width,
+                inlineHeight      : el.style.height,
+                inlineTransform   : el.style.transform,
+                inlineTransition  : el.style.transition,
+                position          : cs.position,
+                left              : cs.left,
+                top               : cs.top,
+                visibility        : cs.visibility,
             });
         }
 
@@ -185,6 +186,59 @@
 
         // ── Animation ────────────────────────────────────────────────────────
 
+        // Snap element to the final collapsed state without any transition.
+        #snapToCollapsed(elements) {
+            const cfg = _anim.get(this)?.cfg;
+            if (!cfg) return;
+            elements.forEach(el => {
+                el.style.transition = 'none';
+                void el.offsetHeight;
+                const w = this.#storedDim(el, 'width');
+                const h = this.#storedDim(el, 'height');
+                this.#applySizeCollapse(el, cfg);
+                this.#applyTransform(el, cfg, w, h);
+                const sv = _styles.get(el);
+                el.style.transition = sv ? sv.inlineTransition : '';
+            });
+            // dataset.collapsed remains set — already marked by #doCollapse
+        }
+
+        // Snap element to the final restored state without any transition.
+        #snapToRestored(elements) {
+            elements.forEach(el => {
+                const sv = _styles.get(el);
+                if (!sv) return;
+                el.style.transition = 'none';
+                void el.offsetHeight;
+                this.#restoreStyles(el);
+                el.style.transform  = sv.inlineTransform  || '';
+                el.style.width      = sv.inlineWidth      || '';
+                el.style.height     = sv.inlineHeight     || '';
+                el.style.transition = sv.inlineTransition || '';
+                _styles.delete(el);
+            });
+            delete this.element.dataset.collapsed;
+        }
+
+        // Rapid toggling left _styles populated with mid-animation sizes. The
+        // #saveStyles guard (if _styles.has(el)) then blocked re-saving, so
+        // subsequent collapse/restore computed transforms and dimensions from
+        // those stale values — causing panels to fly off-screen or resize
+        // permanently. Snapping to the end state first guarantees _styles and
+        // dataset.collapsed are always in a consistent terminal state before
+        // a new animation starts.
+        #cancelAnimation(elements) {
+            const state = _anim.get(this);
+            if (!state?.timer) return;
+            clearTimeout(state.timer);
+            if (state.phase === 'restoring') {
+                this.#snapToRestored(elements);
+            } else {
+                this.#snapToCollapsed(elements);
+            }
+            _anim.delete(this);
+        }
+
         #doCollapse(elements, direction, cfg, duration, curve) {
             elements.forEach(el => {
                 this.#saveStyles(el);
@@ -202,12 +256,18 @@
                 this.#applySizeCollapse(el, cfg);
             });
             this.element.dataset.collapsed = direction;
-            setTimeout(() => {
-                elements.forEach(el => {
-                    const sv = _styles.get(el);
-                    if (sv?.transition === 'none') el.style.transition = '';
-                });
-            }, duration);
+            _anim.set(this, {
+                phase : 'collapsing',
+                cfg,
+                timer : setTimeout(() => {
+                    elements.forEach(el => {
+                        const sv = _styles.get(el);
+                        if (!sv) return;
+                        el.style.transition = sv.inlineTransition || '';
+                    });
+                    _anim.delete(this);
+                }, duration),
+            });
         }
 
         #doRestore(elements, cfg, duration, curve) {
@@ -221,31 +281,38 @@
                 // Animate transform back to the element's original inline value (or none).
                 el.style.transform = sv.inlineTransform || '';
             });
-            setTimeout(() => {
-                elements.forEach(el => {
-                    const sv = _styles.get(el);
-                    if (!sv) return;
-                    el.style.width      = sv.inlineWidth  || '';
-                    el.style.height     = sv.inlineHeight || '';
-                    el.style.transition = '';
-                    _styles.delete(el);
-                });
-                delete this.element.dataset.collapsed;
-            }, duration);
+            _anim.set(this, {
+                phase : 'restoring',
+                cfg,
+                timer : setTimeout(() => {
+                    elements.forEach(el => {
+                        const sv = _styles.get(el);
+                        if (!sv) return;
+                        el.style.width      = sv.inlineWidth      || '';
+                        el.style.height     = sv.inlineHeight     || '';
+                        el.style.transition = sv.inlineTransition || '';
+                        _styles.delete(el);
+                    });
+                    delete this.element.dataset.collapsed;
+                    _anim.delete(this);
+                }, duration),
+            });
         }
 
         // ── Public API ───────────────────────────────────────────────────────
 
         transition(direction = 'up', duration = 300, easing = 'easeInOut') {
+            const elements = this.#allElements();
+            this.#cancelAnimation(elements);
+
             const collapsedDir = this.element.dataset.collapsed;
             const target = collapsedDir ?? direction;
             if (!VALID_DIRS.has(target)) {
                 console.error(`CollapseTree: invalid direction "${target}"`);
                 return;
             }
-            const cfg      = DIRECTIONS[target];
-            const elements = this.#allElements();
-            const curve    = this.#curve(easing);
+            const cfg   = DIRECTIONS[target];
+            const curve = this.#curve(easing);
             if (collapsedDir) {
                 this.#doRestore(elements, cfg, duration, curve);
             } else {
