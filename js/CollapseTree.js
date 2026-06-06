@@ -198,35 +198,39 @@
 
         // ── Animation ────────────────────────────────────────────────────────
 
-        // Snap element to the final collapsed state without any transition.
+        // Snap to the final collapsed state without any transition.
         #snapToCollapsed(elements) {
-            const cfg = _anim.get(this)?.cfg;
+            const root = elements[0];
+            const cfg  = _anim.get(this)?.cfg;
             if (!cfg) return;
-            elements.forEach(el => {
-                el.style.transition = 'none';
-                void el.offsetHeight;
-                const w = this.#storedDim(el, 'width');
-                const h = this.#storedDim(el, 'height');
-                this.#applySizeCollapse(el, cfg);
-                this.#applyTransform(el, cfg, w, h);
-                const sv = _styles.get(el);
-                el.style.transition = sv ? sv.inlineTransition : '';
-            });
+            root.style.transition = 'none';
+            void root.offsetHeight;
+            const w = this.#storedDim(root, 'width');
+            const h = this.#storedDim(root, 'height');
+            this.#applySizeCollapse(root, cfg);
+            this.#applyTransform(root, cfg, w, h);
+            const sv = _styles.get(root);
+            root.style.transition = sv ? sv.inlineTransition : '';
             // dataset.collapsed remains set — already marked by #doCollapse
         }
 
-        // Snap element to the final restored state without any transition.
+        // Snap to the final restored state without any transition.
         #snapToRestored(elements) {
-            elements.forEach(el => {
+            const [root, ...children] = elements;
+            const sv = _styles.get(root);
+            if (!sv) return;
+            root.style.transition = 'none';
+            void root.offsetHeight;
+            this.#restoreStyles(root);
+            root.style.transform  = sv.inlineTransform  || '';
+            root.style.width      = sv.inlineWidth      || '';
+            root.style.height     = sv.inlineHeight     || '';
+            root.style.transition = sv.inlineTransition || '';
+            _styles.delete(root);
+            children.forEach(el => {
                 const sv = _styles.get(el);
                 if (!sv) return;
-                el.style.transition = 'none';
-                void el.offsetHeight;
-                this.#restoreStyles(el);
-                el.style.transform  = sv.inlineTransform  || '';
-                el.style.width      = sv.inlineWidth      || '';
-                el.style.height     = sv.inlineHeight     || '';
-                el.style.transition = sv.inlineTransition || '';
+                el.style.width  = sv.inlineWidth  || '';
                 _styles.delete(el);
             });
             delete this.element.dataset.collapsed;
@@ -252,57 +256,76 @@
         }
 
         #doCollapse(elements, direction, cfg, duration, curve) {
-            elements.forEach(el => {
-                this.#saveStyles(el);
-                const cs = window.getComputedStyle(el);
-                const w  = parseFloat(cs.width);
-                const h  = parseFloat(cs.height);
-                // Pin dimensions so content (e.g. images) doesn't reflow during animation.
-                el.style.width  = cs.width;
-                el.style.height = cs.height;
-                if (cs.position === 'static') el.style.position = 'relative';
-                el.style.transformOrigin = cfg.transformOrigin;
-                void el.offsetHeight; // force reflow before transition starts
-                el.style.transition = `all ${duration}ms ${curve}`;
-                this.#applyTransform(el, cfg, w, h);
-                this.#applySizeCollapse(el, cfg);
-            });
+            const [root, ...children] = elements;
+
+            // Pin child widths to prevent reflow when the horizontal axis shrinks.
+            // Vertical collapse doesn't change the root's width, so 100%-width
+            // children stay stable without pinning. The root's overflow:hidden
+            // handles all visual clipping — children must not get their own
+            // size/transform animation, or border-radius and subpixel rounding
+            // cause visible width artifacts on the children.
+            if (cfg.axis === 'horizontal' || cfg.axis === 'both') {
+                children.forEach(el => {
+                    if (_styles.has(el)) return;
+                    _styles.set(el, { inlineWidth: el.style.width });
+                    el.style.width = window.getComputedStyle(el).width;
+                });
+            }
+
+            // Animate the root element only.
+            this.#saveStyles(root);
+            const cs = window.getComputedStyle(root);
+            const w  = parseFloat(cs.width);
+            const h  = parseFloat(cs.height);
+            root.style.width  = cs.width;
+            root.style.height = cs.height;
+            if (cs.position === 'static') root.style.position = 'relative';
+            root.style.transformOrigin = cfg.transformOrigin;
+            void root.offsetHeight; // force reflow before transition starts
+            root.style.transition = `all ${duration}ms ${curve}`;
+            this.#applyTransform(root, cfg, w, h);
+            this.#applySizeCollapse(root, cfg);
+
             this.element.dataset.collapsed = direction;
             _anim.set(this, {
                 phase : 'collapsing',
                 cfg,
                 timer : setTimeout(() => {
-                    elements.forEach(el => {
-                        const sv = _styles.get(el);
-                        if (!sv) return;
-                        el.style.transition = sv.inlineTransition || '';
-                    });
+                    const sv = _styles.get(root);
+                    if (sv) root.style.transition = sv.inlineTransition || '';
                     _anim.delete(this);
                 }, duration),
             });
         }
 
         #doRestore(elements, cfg, duration, curve) {
-            elements.forEach(el => {
-                const sv = _styles.get(el);
-                if (!sv) return;
-                el.style.transformOrigin = cfg.transformOrigin;
-                void el.offsetHeight; // force reflow before transition starts
-                el.style.transition = `all ${duration}ms ${curve}`;
-                this.#restoreStyles(el);
-                // Animate transform back to the element's original inline value (or none).
-                el.style.transform = sv.inlineTransform || '';
-            });
+            const [root, ...children] = elements;
+            const sv = _styles.get(root);
+            if (!sv) return;
+
+            // Animate the root element back to its original state.
+            root.style.transformOrigin = cfg.transformOrigin;
+            void root.offsetHeight; // force reflow before transition starts
+            root.style.transition = `all ${duration}ms ${curve}`;
+            this.#restoreStyles(root);
+            root.style.transform = sv.inlineTransform || '';
+
             _anim.set(this, {
                 phase : 'restoring',
                 cfg,
                 timer : setTimeout(() => {
-                    elements.forEach(el => {
+                    const sv = _styles.get(root);
+                    if (sv) {
+                        root.style.width      = sv.inlineWidth      || '';
+                        root.style.height     = sv.inlineHeight     || '';
+                        root.style.transition = sv.inlineTransition || '';
+                        _styles.delete(root);
+                    }
+                    // Restore any children that had their widths pinned.
+                    children.forEach(el => {
                         const sv = _styles.get(el);
                         if (!sv) return;
-                        el.style.width      = sv.inlineWidth      || '';
-                        el.style.height     = sv.inlineHeight     || '';
-                        el.style.transition = sv.inlineTransition || '';
+                        el.style.width = sv.inlineWidth || '';
                         _styles.delete(el);
                     });
                     delete this.element.dataset.collapsed;
