@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="css/reset.css">
+    <link rel="stylesheet" href="css/style.css">
+    <title>Collapse Tree — Demo</title>
+</head>
+<body>
+
+    <header class="site-header">
+        <h1>Collapse &amp; Restore Demo</h1>
+        <p>Interactive demo of the <code>CollapseTree</code> class &mdash; 8 collapse directions</p>
+    </header>
+
+    <main>
+
+        <!-- ── Controls ── -->
+        <section class="controls-bar">
+            <label>
+                Easing
+                <select id="easingSelect">
+                    <option value="easeInOut" selected>easeInOut</option>
+                    <option value="linear">linear</option>
+                    <option value="ease">ease</option>
+                    <option value="easeIn">easeIn</option>
+                    <option value="easeOut">easeOut</option>
+                    <option value="bounce">bounce</option>
+                </select>
+            </label>
+            <label>
+                Duration
+                <input type="range" id="durationRange" min="100" max="1200" value="400" step="50">
+                <span id="durationLabel">400 ms</span>
+            </label>
+        </section>
+
+        <!-- ── Direction demos ── -->
+        <section class="demo-grid">
+
+            <!-- up -->
+            <div class="demo-card">
+                <div class="card-header">
+                    <h2>&#8593; Up</h2>
+                    <button class="btn btn-toggle" data-target="panel-up" data-dir="up" data-open="true">Toggle</button>
+                </div>
+                <div id="panel-up" class="panel panel--accent">
+                    <img src="https://picsum.photos/seed/up/320/160" alt="sample">
+                    <p>Collapses toward the <strong>top</strong>. Origin: <code>center bottom</code>.</p>
+                </div>
+            </div>
+
+            <!-- down -->
+            <div class="demo-card">
+                <div class="card-header">
+                    <h2>&#8595; Down</h2>
+                    <button class="btn btn-toggle" data-target="panel-down" data-dir="down" data-open="true">Toggle</button>
+                </div>
+                <div id="panel-down" class="panel panel--accent">
+                    <img src="https://picsum.photos/seed/down/320/160" alt="sample">
+                    <p>Collapses toward the <strong>bottom</strong>. Origin: <code>center top</code>.</p>
+                </div>
+            </div>
+
+            <!-- left -->
+            <div class="demo-card">
+                <div class="card-header">
+                    <h2>&#8592; Left</h2>
+                    <button class="btn btn-toggle" data-target="panel-left" data-dir="left" data-open="true">Toggle</button>
+                </div>
+                <div id="panel-left" class="panel panel--accent">
+                    <img src="https://picsum.photos/seed/left/320/160" alt="sample">
+                    <div class="panel-field">
+                        <label class="field-label" for="input-left">Label</label>
+                        <input class="field-input" id="input-left" type="text" placeholder="Enter value&hellip;">
+                    </div>
+                    <div class="panel-actions">
+                        <button class="btn btn-save">Save</button>
+                        <button class="btn btn-discard">Discard</button>
+                        <button class="btn btn-danger">Delete</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- right -->
+            <div class="demo-card">
+                <div class="card-header">
+                    <h2>&#8594; Right</h2>
+                    <button class="btn btn-toggle" data-target="panel-right" data-dir="right" data-open="true">Toggle</button>
+                </div>
+                <div id="panel-right" class="panel panel--accent">
+                    <img src="https://picsum.photos/seed/right/320/160" alt="sample">
+                    <p>Collapses toward the <strong>right</strong>. Origin: <code>left center</code>.</p>
+                </div>
+            </div>
+
+            <!-- up-left -->
+            <div class="demo-card">
+                <div class="card-header">
+                    <h2>&#8598; Up-Left</h2>
+                    <button class="btn btn-toggle" data-target="panel-up-left" data-dir="up-left" data-open="true">Toggle</button>
+                </div>
+                <div id="panel-up-left" class="panel panel--accent">
+                    <img src="https://picsum.photos/seed/upleft/320/160" alt="sample">
+                    <p>Collapses toward the <strong>top-left corner</strong>. Origin: <code>left top</code>.</p>
+                </div>
+            </div>
+
+            <!-- up-right -->
+            <div class="demo-card">
+                <div class="card-header">
+                    <h2>&#8599; Up-Right</h2>
+                    <button class="btn btn-toggle" data-target="panel-up-right" data-dir="up-right" data-open="true">Toggle</button>
+                </div>
+                <div id="panel-up-right" class="panel panel--accent">
+                    <img src="https://picsum.photos/seed/upright/320/160" alt="sample">
+                    <p>Collapses toward the <strong>top-right corner</strong>. Origin: <code>right top</code>.</p>
+                </div>
+            </div>
+
+            <!-- down-left -->
+            <div class="demo-card">
+                <div class="card-header">
+                    <h2>&#8601; Down-Left</h2>
+                    <button class="btn btn-toggle" data-target="panel-down-left" data-dir="down-left" data-open="true">Toggle</button>
+                </div>
+                <div id="panel-down-left" class="panel panel--accent">
+                    <img src="https://picsum.photos/seed/downleft/320/160" alt="sample">
+                    <p>Collapses toward the <strong>bottom-left corner</strong>. Origin: <code>left bottom</code>.</p>
+                </div>
+            </div>
+
+            <!-- down-right -->
+            <div class="demo-card">
+                <div class="card-header">
+                    <h2>&#8600; Down-Right</h2>
+                    <button class="btn btn-toggle" data-target="panel-down-right" data-dir="down-right" data-open="true">Toggle</button>
+                </div>
+                <div id="panel-down-right" class="panel panel--accent">
+                    <img src="https://picsum.photos/seed/downright/320/160" alt="sample">
+                    <p>Collapses toward the <strong>bottom-right corner</strong>. Origin: <code>right bottom</code>.</p>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <script src="js/CollapseTree.js"></script>
+    <script src="js/demo.js"></script>
+</body>
+</html>
