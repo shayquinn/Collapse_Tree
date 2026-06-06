@@ -100,6 +100,10 @@
                 marginBottom      : cs.marginBottom,
                 marginLeft        : cs.marginLeft,
                 marginRight       : cs.marginRight,
+                borderTopWidth    : cs.borderTopWidth,
+                borderBottomWidth : cs.borderBottomWidth,
+                borderLeftWidth   : cs.borderLeftWidth,
+                borderRightWidth  : cs.borderRightWidth,
                 inlineWidth       : el.style.width,
                 inlineHeight      : el.style.height,
                 inlineTransform   : el.style.transform,
@@ -127,18 +131,22 @@
         #applySizeCollapse(el, cfg) {
             const s = el.style;
             if (cfg.axis === 'vertical' || cfg.axis === 'both') {
-                s.height        = '0';
-                s.paddingTop    = '0';
-                s.paddingBottom = '0';
-                s.marginTop     = '0';
-                s.marginBottom  = '0';
+                s.height           = '0';
+                s.paddingTop       = '0';
+                s.paddingBottom    = '0';
+                s.marginTop        = '0';
+                s.marginBottom     = '0';
+                s.borderTopWidth   = '0';
+                s.borderBottomWidth = '0';
             }
             if (cfg.axis === 'horizontal' || cfg.axis === 'both') {
-                s.width        = '0';
-                s.paddingLeft  = '0';
-                s.paddingRight = '0';
-                s.marginLeft   = '0';
-                s.marginRight  = '0';
+                s.width           = '0';
+                s.paddingLeft     = '0';
+                s.paddingRight    = '0';
+                s.marginLeft      = '0';
+                s.marginRight     = '0';
+                s.borderLeftWidth  = '0';
+                s.borderRightWidth = '0';
             }
             s.overflow = 'hidden';
         }
@@ -149,23 +157,27 @@
             const sv = _styles.get(el);
             if (!sv) return;
             Object.assign(el.style, {
-                display         : sv.display,
-                width           : sv.width,
-                height          : sv.height,
-                overflow        : sv.overflow,
-                paddingTop      : sv.paddingTop,
-                paddingBottom   : sv.paddingBottom,
-                paddingLeft     : sv.paddingLeft,
-                paddingRight    : sv.paddingRight,
-                marginTop       : sv.marginTop,
-                marginBottom    : sv.marginBottom,
-                marginLeft      : sv.marginLeft,
-                marginRight     : sv.marginRight,
-                position        : sv.position,
-                left            : sv.left,
-                top             : sv.top,
-                visibility      : sv.visibility,
-                transformOrigin : '',
+                display           : sv.display,
+                width             : sv.width,
+                height            : sv.height,
+                overflow          : sv.overflow,
+                paddingTop        : sv.paddingTop,
+                paddingBottom     : sv.paddingBottom,
+                paddingLeft       : sv.paddingLeft,
+                paddingRight      : sv.paddingRight,
+                marginTop         : sv.marginTop,
+                marginBottom      : sv.marginBottom,
+                marginLeft        : sv.marginLeft,
+                marginRight       : sv.marginRight,
+                borderTopWidth    : sv.borderTopWidth,
+                borderBottomWidth : sv.borderBottomWidth,
+                borderLeftWidth   : sv.borderLeftWidth,
+                borderRightWidth  : sv.borderRightWidth,
+                position          : sv.position,
+                left              : sv.left,
+                top               : sv.top,
+                visibility        : sv.visibility,
+                transformOrigin   : '',
             });
         }
 
