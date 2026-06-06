@@ -166,7 +166,6 @@
                 left              : sv.left,
                 top               : sv.top,
                 visibility        : sv.visibility,
-                transformOrigin   : '',
             });
         }
 
@@ -242,11 +241,11 @@
                 void el.offsetHeight;
                 
                 this.#restoreStyles(el);
-                el.style.transform = sv.inlineTransform || '';
-                el.style.width = sv.inlineWidth || '';
-                el.style.height = sv.inlineHeight || '';
-                el.style.transition = sv.inlineTransition || '';
-                
+                el.style.transform       = sv.inlineTransform  || '';
+                el.style.width           = sv.inlineWidth      || '';
+                el.style.height          = sv.inlineHeight     || '';
+                el.style.transition      = sv.inlineTransition || '';
+                el.style.transformOrigin = '';
                 _styles.delete(el);
             });
             delete this.element.dataset.collapsed;
@@ -350,9 +349,10 @@
                     elements.forEach(el => {
                         const sv = _styles.get(el);
                         if (!sv) return;
-                        el.style.width = sv.inlineWidth || '';
-                        el.style.height = sv.inlineHeight || '';
-                        el.style.transition = sv.inlineTransition || '';
+                        el.style.width           = sv.inlineWidth      || '';
+                        el.style.height          = sv.inlineHeight     || '';
+                        el.style.transition      = sv.inlineTransition || '';
+                        el.style.transformOrigin = '';
                         _styles.delete(el);
                     });
                     delete this.element.dataset.collapsed;
