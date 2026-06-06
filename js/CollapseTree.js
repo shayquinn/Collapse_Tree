@@ -4,14 +4,14 @@
     // ── Constants ────────────────────────────────────────────────────────────
 
     const DIRECTIONS = Object.freeze({
-        'up':         { axis: 'vertical',   transformOrigin: 'center top',    moveDirection: { x: 0, y: 0 }, restoreFrom: { x: 0,  y: 0  } },
-        'down':       { axis: 'vertical',   transformOrigin: 'center bottom', moveDirection: { x: 0, y: 1 }, restoreFrom: { x: 0,  y: -1 } },
-        'left':       { axis: 'horizontal', transformOrigin: 'left center',   moveDirection: { x: 0, y: 0 }, restoreFrom: { x: 0,  y: 0  } },
-        'right':      { axis: 'horizontal', transformOrigin: 'right center',  moveDirection: { x: 1, y: 0 }, restoreFrom: { x: -1, y: 0  } },
-        'up-left':    { axis: 'both',       transformOrigin: 'left top',      moveDirection: { x: 0, y: 0 }, restoreFrom: { x: 0,  y: 0  } },
-        'up-right':   { axis: 'both',       transformOrigin: 'right top',     moveDirection: { x: 1, y: 0 }, restoreFrom: { x: -1, y: 0  } },
-        'down-left':  { axis: 'both',       transformOrigin: 'left bottom',   moveDirection: { x: 0, y: 1 }, restoreFrom: { x: 0,  y: -1 } },
-        'down-right': { axis: 'both',       transformOrigin: 'right bottom',  moveDirection: { x: 1, y: 1 }, restoreFrom: { x: -1, y: -1 } },
+        'up':         { axis: 'vertical',   transformOrigin: 'center top',    moveDirection: { x: 0, y: -1 }, restoreFrom: { x: 0,  y: 1  } },
+        'down':       { axis: 'vertical',   transformOrigin: 'center bottom', moveDirection: { x: 0, y: 1  }, restoreFrom: { x: 0,  y: -1 } },
+        'left':       { axis: 'horizontal', transformOrigin: 'left center',   moveDirection: { x: -1, y: 0 }, restoreFrom: { x: 1,  y: 0  } },
+        'right':      { axis: 'horizontal', transformOrigin: 'right center',  moveDirection: { x: 1,  y: 0 }, restoreFrom: { x: -1, y: 0  } },
+        'up-left':    { axis: 'both',       transformOrigin: 'left top',      moveDirection: { x: -1, y: -1 }, restoreFrom: { x: 1,  y: 1  } },
+        'up-right':   { axis: 'both',       transformOrigin: 'right top',     moveDirection: { x: 1,  y: -1 }, restoreFrom: { x: -1, y: 1  } },
+        'down-left':  { axis: 'both',       transformOrigin: 'left bottom',   moveDirection: { x: -1, y: 1  }, restoreFrom: { x: 1,  y: -1 } },
+        'down-right': { axis: 'both',       transformOrigin: 'right bottom',  moveDirection: { x: 1,  y: 1  }, restoreFrom: { x: -1, y: -1 } },
     });
 
     const EASINGS = Object.freeze({
@@ -27,19 +27,16 @@
     const VALID_EAS  = new Set(Object.keys(EASINGS));
 
     // ── Module-private state ─────────────────────────────────────────────────
-    // WeakMaps keep data off the DOM, prevent external mutation, and let the GC
-    // collect entries automatically when elements are removed.
 
-    const _styles   = new WeakMap(); // element  → saved style snapshot
-    const _config   = new WeakMap(); // instance → declarative config
-    const _registry = new WeakMap(); // element  → CollapseTree instance
-    const _anim     = new WeakMap(); // instance → { timer, phase, cfg }
+    const _styles   = new WeakMap();
+    const _config   = new WeakMap();
+    const _registry = new WeakMap();
+    const _anim     = new WeakMap();
 
     // ── Class ────────────────────────────────────────────────────────────────
 
     class CollapseTree {
 
-        // Frozen references kept public for external inspection (e.g. building UIs).
         static directions = DIRECTIONS;
         static easings    = EASINGS;
 
@@ -67,30 +64,14 @@
             return EASINGS[easing] ?? EASINGS.easeInOut;
         }
 
-        // Temporarily makes a zero-size element visible so we can read its natural dimensions.
-        #getHiddenDimensions(el) {
-            const { visibility, position } = el.style;
-            el.style.visibility = 'hidden';
-            if (window.getComputedStyle(el).position === 'static') el.style.position = 'relative';
-            const { width, height } = window.getComputedStyle(el);
-            el.style.visibility = visibility;
-            el.style.position   = position;
-            return { width, height };
-        }
-
         #saveStyles(el, preserveDimensions = false) {
             if (_styles.has(el)) return;
             const cs = window.getComputedStyle(el);
-            let width  = cs.width;
-            let height = cs.height;
-
-            if (preserveDimensions && (width === '0px' || height === '0px')) {
-                ({ width, height } = this.#getHiddenDimensions(el));
-            }
-
+            
             _styles.set(el, {
                 display           : cs.display,
-                width, height,
+                width             : cs.width,
+                height            : cs.height,
                 overflow          : cs.overflow,
                 paddingTop        : cs.paddingTop,
                 paddingBottom     : cs.paddingBottom,
@@ -119,43 +100,51 @@
             return parseFloat(_styles.get(el)?.[key] ?? 0);
         }
 
-        #applyTransform(el, cfg, w, h, isRestore = false) {
+        #applyTransformScale(el, cfg, scaleX, scaleY, isRestore = false) {
             const dir = isRestore ? cfg.restoreFrom : cfg.moveDirection;
-            const x = dir.x * w;
-            const y = dir.y * h;
-            if (x !== 0 || y !== 0) {
-                el.style.transform = `translate(${x}px, ${y}px)`;
+            
+            if (cfg.axis === 'both') {
+                // For diagonal directions, scale based on direction
+                const xScale = dir.x === -1 ? scaleX : (dir.x === 1 ? scaleX : 1);
+                const yScale = dir.y === -1 ? scaleY : (dir.y === 1 ? scaleY : 1);
+                el.style.transform = `scale(${xScale}, ${yScale})`;
+            } else if (cfg.axis === 'vertical') {
+                // For vertical directions, scale Y only
+                const yScale = dir.y === -1 ? scaleY : (dir.y === 1 ? scaleY : 0);
+                el.style.transform = `scale(1, ${yScale})`;
+            } else if (cfg.axis === 'horizontal') {
+                // For horizontal directions, scale X only
+                const xScale = dir.x === -1 ? scaleX : (dir.x === 1 ? scaleX : 0);
+                el.style.transform = `scale(${xScale}, 1)`;
             }
         }
 
         #applySizeCollapse(el, cfg) {
             const s = el.style;
-            if (cfg.axis === 'vertical' || cfg.axis === 'both') {
-                s.height           = '0';
-                s.paddingTop       = '0';
-                s.paddingBottom    = '0';
-                s.marginTop        = '0';
-                s.marginBottom     = '0';
-                s.borderTopWidth   = '0';
-                s.borderBottomWidth = '0';
-            }
-            if (cfg.axis === 'horizontal' || cfg.axis === 'both') {
-                s.width           = '0';
-                s.paddingLeft     = '0';
-                s.paddingRight    = '0';
-                s.marginLeft      = '0';
-                s.marginRight     = '0';
-                s.borderLeftWidth  = '0';
-                s.borderRightWidth = '0';
-            }
+            
+            // Always set overflow to hidden for collapsing
             s.overflow = 'hidden';
+            
+            // For both axes, we need to ensure dimensions are set to 0
+            if (cfg.axis === 'both') {
+                s.width = '0';
+                s.height = '0';
+                s.paddingTop = '0';
+                s.paddingBottom = '0';
+                s.paddingLeft = '0';
+                s.paddingRight = '0';
+                s.marginTop = '0';
+                s.marginBottom = '0';
+                s.marginLeft = '0';
+                s.marginRight = '0';
+            }
         }
 
-        // Applies all saved properties except transform, which is handled by the
-        // caller so it can be correctly animated as the transition target.
         #restoreStyles(el) {
             const sv = _styles.get(el);
             if (!sv) return;
+            
+            // Restore all original styles
             Object.assign(el.style, {
                 display           : sv.display,
                 width             : sv.width,
@@ -184,68 +173,89 @@
         #setInitialCollapsedState(direction) {
             const cfg = DIRECTIONS[direction];
             const el  = this.element;
+            
+            // Save original styles
             this.#saveStyles(el, true);
-            const w  = this.#storedDim(el, 'width');
-            const h  = this.#storedDim(el, 'height');
-            if (window.getComputedStyle(el).position === 'static') el.style.position = 'relative';
-            if (cfg.axis === 'vertical'   || cfg.axis === 'both') el.style.height = `${h}px`;
-            if (cfg.axis === 'horizontal' || cfg.axis === 'both') el.style.width  = `${w}px`;
-            this.#applyTransform(el, cfg, w, h, true);
-            this.#applySizeCollapse(el, cfg);
+            
+            const w = this.#storedDim(el, 'width');
+            const h = this.#storedDim(el, 'height');
+            
+            if (window.getComputedStyle(el).position === 'static') {
+                el.style.position = 'relative';
+            }
+            
+            // Set transform origin
             el.style.transformOrigin = cfg.transformOrigin;
+            
+            // Apply collapsed state based on axis
+            if (cfg.axis === 'both') {
+                el.style.transform = `scale(0, 0)`;
+                this.#applySizeCollapse(el, cfg);
+            } else if (cfg.axis === 'vertical') {
+                el.style.transform = `scale(1, 0)`;
+                el.style.height = `${h}px`;
+            } else if (cfg.axis === 'horizontal') {
+                el.style.transform = `scale(0, 1)`;
+                el.style.width = `${w}px`;
+            }
+            
+            el.style.overflow = 'hidden';
             el.dataset.collapsed = direction;
         }
 
         // ── Animation ────────────────────────────────────────────────────────
 
-        // Snap to the final collapsed state without any transition.
         #snapToCollapsed(elements) {
-            const root = elements[0];
-            const cfg  = _anim.get(this)?.cfg;
+            const cfg = _anim.get(this)?.cfg;
             if (!cfg) return;
-            root.style.transition = 'none';
-            void root.offsetHeight;
-            const w = this.#storedDim(root, 'width');
-            const h = this.#storedDim(root, 'height');
-            this.#applySizeCollapse(root, cfg);
-            this.#applyTransform(root, cfg, w, h);
-            const sv = _styles.get(root);
-            root.style.transition = sv ? sv.inlineTransition : '';
-            // dataset.collapsed remains set — already marked by #doCollapse
+            
+            elements.forEach(el => {
+                el.style.transition = 'none';
+                void el.offsetHeight;
+                
+                if (cfg.axis === 'both') {
+                    el.style.transform = `scale(0, 0)`;
+                    this.#applySizeCollapse(el, cfg);
+                } else if (cfg.axis === 'vertical') {
+                    el.style.transform = `scale(1, 0)`;
+                    el.style.height = '0';
+                    el.style.paddingTop = '0';
+                    el.style.paddingBottom = '0';
+                } else if (cfg.axis === 'horizontal') {
+                    el.style.transform = `scale(0, 1)`;
+                    el.style.width = '0';
+                    el.style.paddingLeft = '0';
+                    el.style.paddingRight = '0';
+                }
+                
+                const sv = _styles.get(el);
+                el.style.transition = sv ? sv.inlineTransition : '';
+            });
         }
 
-        // Snap to the final restored state without any transition.
         #snapToRestored(elements) {
-            const [root, ...children] = elements;
-            const sv = _styles.get(root);
-            if (!sv) return;
-            root.style.transition = 'none';
-            void root.offsetHeight;
-            this.#restoreStyles(root);
-            root.style.transform  = sv.inlineTransform  || '';
-            root.style.width      = sv.inlineWidth      || '';
-            root.style.height     = sv.inlineHeight     || '';
-            root.style.transition = sv.inlineTransition || '';
-            _styles.delete(root);
-            children.forEach(el => {
+            elements.forEach(el => {
                 const sv = _styles.get(el);
                 if (!sv) return;
-                el.style.width  = sv.inlineWidth  || '';
+                
+                el.style.transition = 'none';
+                void el.offsetHeight;
+                
+                this.#restoreStyles(el);
+                el.style.transform = sv.inlineTransform || '';
+                el.style.width = sv.inlineWidth || '';
+                el.style.height = sv.inlineHeight || '';
+                el.style.transition = sv.inlineTransition || '';
+                
                 _styles.delete(el);
             });
             delete this.element.dataset.collapsed;
         }
 
-        // Rapid toggling left _styles populated with mid-animation sizes. The
-        // #saveStyles guard (if _styles.has(el)) then blocked re-saving, so
-        // subsequent collapse/restore computed transforms and dimensions from
-        // those stale values — causing panels to fly off-screen or resize
-        // permanently. Snapping to the end state first guarantees _styles and
-        // dataset.collapsed are always in a consistent terminal state before
-        // a new animation starts.
         #cancelAnimation(elements) {
             const state = _anim.get(this);
             if (!state?.timer) return;
+            
             clearTimeout(state.timer);
             if (state.phase === 'restoring') {
                 this.#snapToRestored(elements);
@@ -256,76 +266,93 @@
         }
 
         #doCollapse(elements, direction, cfg, duration, curve) {
-            const [root, ...children] = elements;
-
-            // Pin child widths to prevent reflow when the horizontal axis shrinks.
-            // Vertical collapse doesn't change the root's width, so 100%-width
-            // children stay stable without pinning. The root's overflow:hidden
-            // handles all visual clipping — children must not get their own
-            // size/transform animation, or border-radius and subpixel rounding
-            // cause visible width artifacts on the children.
-            if (cfg.axis === 'horizontal' || cfg.axis === 'both') {
-                children.forEach(el => {
-                    if (_styles.has(el)) return;
-                    _styles.set(el, { inlineWidth: el.style.width });
-                    el.style.width = window.getComputedStyle(el).width;
-                });
-            }
-
-            // Animate the root element only.
-            this.#saveStyles(root);
-            const cs = window.getComputedStyle(root);
-            const w  = parseFloat(cs.width);
-            const h  = parseFloat(cs.height);
-            root.style.width  = cs.width;
-            root.style.height = cs.height;
-            if (cs.position === 'static') root.style.position = 'relative';
-            root.style.transformOrigin = cfg.transformOrigin;
-            void root.offsetHeight; // force reflow before transition starts
-            root.style.transition = `all ${duration}ms ${curve}`;
-            this.#applyTransform(root, cfg, w, h);
-            this.#applySizeCollapse(root, cfg);
-
+            elements.forEach(el => {
+                this.#saveStyles(el);
+                const cs = window.getComputedStyle(el);
+                const w = parseFloat(cs.width);
+                const h = parseFloat(cs.height);
+                
+                // Pin dimensions to prevent reflow
+                el.style.width = cs.width;
+                el.style.height = cs.height;
+                
+                if (cs.position === 'static') {
+                    el.style.position = 'relative';
+                }
+                
+                el.style.transformOrigin = cfg.transformOrigin;
+                void el.offsetHeight;
+                
+                el.style.transition = `all ${duration}ms ${curve}`;
+                
+                // Apply transform based on axis
+                if (cfg.axis === 'both') {
+                    el.style.transform = `scale(0, 0)`;
+                    this.#applySizeCollapse(el, cfg);
+                } else if (cfg.axis === 'vertical') {
+                    el.style.transform = `scale(1, 0)`;
+                    el.style.height = '0';
+                    el.style.paddingTop = '0';
+                    el.style.paddingBottom = '0';
+                    el.style.marginTop = '0';
+                    el.style.marginBottom = '0';
+                } else if (cfg.axis === 'horizontal') {
+                    el.style.transform = `scale(0, 1)`;
+                    el.style.width = '0';
+                    el.style.paddingLeft = '0';
+                    el.style.paddingRight = '0';
+                    el.style.marginLeft = '0';
+                    el.style.marginRight = '0';
+                }
+                
+                el.style.overflow = 'hidden';
+            });
+            
             this.element.dataset.collapsed = direction;
+            
             _anim.set(this, {
-                phase : 'collapsing',
+                phase: 'collapsing',
                 cfg,
-                timer : setTimeout(() => {
-                    const sv = _styles.get(root);
-                    if (sv) root.style.transition = sv.inlineTransition || '';
+                timer: setTimeout(() => {
+                    elements.forEach(el => {
+                        const sv = _styles.get(el);
+                        if (!sv) return;
+                        el.style.transition = sv.inlineTransition || '';
+                    });
                     _anim.delete(this);
                 }, duration),
             });
         }
 
         #doRestore(elements, cfg, duration, curve) {
-            const [root, ...children] = elements;
-            const sv = _styles.get(root);
-            if (!sv) return;
-
-            // Animate the root element back to its original state.
-            root.style.transformOrigin = cfg.transformOrigin;
-            void root.offsetHeight; // force reflow before transition starts
-            root.style.transition = `all ${duration}ms ${curve}`;
-            this.#restoreStyles(root);
-            root.style.transform = sv.inlineTransform || '';
-
+            elements.forEach(el => {
+                const sv = _styles.get(el);
+                if (!sv) return;
+                
+                el.style.transformOrigin = cfg.transformOrigin;
+                void el.offsetHeight;
+                
+                el.style.transition = `all ${duration}ms ${curve}`;
+                this.#restoreStyles(el);
+                
+                // Restore transform to original
+                if (cfg.axis === 'both') {
+                    el.style.transform = sv.inlineTransform || 'scale(1, 1)';
+                } else {
+                    el.style.transform = sv.inlineTransform || '';
+                }
+            });
+            
             _anim.set(this, {
-                phase : 'restoring',
+                phase: 'restoring',
                 cfg,
-                timer : setTimeout(() => {
-                    const sv = _styles.get(root);
-                    if (sv) {
-                        root.style.width      = sv.inlineWidth      || '';
-                        root.style.height     = sv.inlineHeight     || '';
-                        root.style.transition = sv.inlineTransition || '';
-                        _styles.delete(root);
-                    }
-                    // Restore any children that had their widths pinned.
-                    children.forEach(el => {
+                timer: setTimeout(() => {
+                    elements.forEach(el => {
                         const sv = _styles.get(el);
                         if (!sv) return;
                         el.style.width = sv.inlineWidth || '';
+                        el.style.height = sv.inlineHeight || '';
+                        el.style.transition = sv.inlineTransition || '';
                         _styles.delete(el);
                     });
                     delete this.element.dataset.collapsed;
@@ -342,12 +369,15 @@
 
             const collapsedDir = this.element.dataset.collapsed;
             const target = collapsedDir ?? direction;
+            
             if (!VALID_DIRS.has(target)) {
                 console.error(`CollapseTree: invalid direction "${target}"`);
                 return;
             }
-            const cfg   = DIRECTIONS[target];
+            
+            const cfg = DIRECTIONS[target];
             const curve = this.#curve(easing);
+            
             if (collapsedDir) {
                 this.#doRestore(elements, cfg, duration, curve);
             } else {
@@ -376,17 +406,13 @@
 
         // ── Static helpers ───────────────────────────────────────────────────
 
-        /** Returns the CollapseTree instance bound to an element, or null. */
         static get(element) {
             return _registry.get(element) ?? null;
         }
 
-        // ── Declarative / auto-init ──────────────────────────────────────────
-
         static #parseTokens(tokens) {
             let i = 0, direction = null, easing = null, duration = null, state = 'open';
 
-            // Try two-token compound direction first (up-left → ['up','left'] after class split).
             if (tokens.length >= 2 && VALID_DIRS.has(`${tokens[0]}-${tokens[1]}`)) {
                 direction = `${tokens[0]}-${tokens[1]}`; i = 2;
             } else if (VALID_DIRS.has(tokens[0])) {
@@ -429,16 +455,9 @@
             if (el.id) idMap.set(el.id, instance);
         }
 
-        /**
-         * Scans `root` for panels with a `collapse-*` class or `data-collapse` attribute,
-         * instantiates CollapseTree on each, and wires `[data-collapse-trigger]` buttons.
-         * Returns a Map of { panelId → instance } for all panels that have an id.
-         * Called automatically on DOMContentLoaded; safe to call again on dynamic content.
-         */
         static autoInit(root = document) {
             const idMap = new Map();
 
-            // data-collapse attribute takes priority when both are present.
             root.querySelectorAll('[data-collapse]').forEach(el =>
                 CollapseTree.#initElement(el, CollapseTree.#parseAttr(el.dataset.collapse), idMap)
             );
