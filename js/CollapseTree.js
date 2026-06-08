@@ -56,10 +56,6 @@
 
         // ── Private helpers ──────────────────────────────────────────────────
 
-        #allElements() {
-            return [this.element, ...this.element.querySelectorAll('*')];
-        }
-
         #curve(easing) {
             return EASINGS[easing] ?? EASINGS.easeInOut;
         }
@@ -251,15 +247,15 @@
             delete this.element.dataset.collapsed;
         }
 
-        #cancelAnimation(elements) {
+        #cancelAnimation() {
             const state = _anim.get(this);
             if (!state?.timer) return;
 
             clearTimeout(state.timer);
             if (state.phase === 'restoring') {
-                this.#snapToRestored(elements);
+                this.#snapToRestored([this.element]);
             } else {
-                this.#snapToCollapsed(elements);
+                this.#snapToCollapsed([this.element]);
             }
             _anim.delete(this);
         }
@@ -357,8 +353,7 @@
         // ── Public API ───────────────────────────────────────────────────────
 
         transition(direction = 'up', duration = 300, easing = 'easeInOut') {
-            const elements = this.#allElements();
-            this.#cancelAnimation(elements);
+            this.#cancelAnimation();
 
             const collapsedDir = this.element.dataset.collapsed;
             const target = collapsedDir ?? direction;
@@ -372,9 +367,9 @@
             const curve = this.#curve(easing);
 
             if (collapsedDir) {
-                this.#doRestore(elements, cfg, duration, curve);
+                this.#doRestore([this.element], cfg, duration, curve);
             } else {
-                this.#doCollapse(elements, direction, cfg, duration, curve);
+                this.#doCollapse([this.element], direction, cfg, duration, curve);
             }
         }
 
